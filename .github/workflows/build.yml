@@ -1,0 +1,84 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag for the release"
+        required: true
+        default: "v1.0.0"
+
+permissions:
+  contents: write
+  actions: read
+  id-token: none
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.5"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install PyMeow
+        run: |
+          curl -LO https://github.com/qb-0/pyMeow/releases/download/1.73.42/pyMeow-1.73.42.zip
+          pip install pyMeow-1.73.42.zip
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Package Application
+        run: |
+          pyinstaller --noconfirm --onefile --windowed --icon "src\img\icon.ico" --name "CS2.ESP" --version-file "version.txt" --add-data "classes;classes/" --add-data "src/img/*;src/img" "main.py"
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CS2_ESP
+          path: dist/CS2.ESP.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: CS2_ESP
+          path: ./artifact-download
+
+      - name: Verify Downloaded Artifact
+        run: |
+          echo "Listing artifact-download directory:"
+          ls -la ./artifact-download
+          if [ ! -f ./artifact-download/CS2.ESP.exe ]; then
+            echo "Error: File CS2.ESP.exe not found in artifact-download directory!"
+            exit 1
+          fi
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.inputs.tag_name }}
+          name: CS2 ESP - Release ${{ github.event.inputs.tag_name }}
+          body_path: ./ChangeLog.md
+          files: |
+            ./artifact-download/CS2.ESP.exe
