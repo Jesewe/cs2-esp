@@ -1,0 +1,5 @@
+pymem==1.14.0
+PyQt6==6.8.1
+PyQt6_sip==13.10.0
+keyboard==0.13.5
+requests==2.32.3
