@@ -1,14 +1,14 @@
-import keyboard
 import os
 import logging
+import keyboard
 import pyMeow as overlay
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QMainWindow, QLabel, QWidget, QVBoxLayout, QHBoxLayout,
     QFormLayout, QCheckBox, QDoubleSpinBox, QComboBox,
     QPushButton, QMessageBox
 )
-from PyQt6.QtCore import QThread, pyqtSlot
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import Qt, QUrl, QSize, QThread, pyqtSlot
+from PyQt6.QtGui import QIcon, QDesktopServices
 
 from classes.utils import resource_path, check_for_updates
 from classes.cs2esp import OverlayWorker
@@ -27,18 +27,32 @@ class MainWindow(QMainWindow):
         self.repo_url: str = "github.com/Jesewe/cs2-esp"
         self.setWindowTitle(f"CS2 ESP | {self.repo_url}")
         self.set_app_icon(resource_path("src/img/icon.ico"))
-        self.setGeometry(100, 100, 400, 400)  # Increased height for extra button
+        self.setFixedSize(500, 420)
         self.overlay_thread: QThread | None = None
         self.overlay_worker: OverlayWorker | None = None
         self.init_ui()
+        self.apply_stylesheet(resource_path('src/styles.css'))
         self.setup_hotkeys()
 
     def setup_hotkeys(self) -> None:
         """
         Sets up global hotkeys for starting (F6) and stopping (F7) the overlay.
         """
-        keyboard.add_hotkey("F6", self.start_overlay)
-        keyboard.add_hotkey("F7", self.stop_overlay)
+        try:
+            keyboard.add_hotkey("F6", self.start_overlay)
+            keyboard.add_hotkey("F7", self.stop_overlay)
+        except Exception as e:
+            logger.error("Failed to register hotkeys: %s", e)
+
+    def apply_stylesheet(self, stylesheet_path: str) -> None:
+        """
+        Applies a custom stylesheet to the main window.
+        """
+        try:
+            with open(stylesheet_path, 'r', encoding='utf-8') as f:
+                self.setStyleSheet(f.read())
+        except Exception as e:
+            logger.error("Failed to load stylesheet (%s): %s", stylesheet_path, e)
 
     def set_app_icon(self, icon_path: str) -> None:
         """
@@ -49,13 +63,80 @@ class MainWindow(QMainWindow):
         else:
             logger.warning("Icon not found at %s, skipping.", icon_path)
 
+    def create_icon_button(self, relative_path: str, tooltip: str, url: str, custom_style: str | None = None) -> QPushButton:
+        """
+        Create a flat icon button that opens the provided URL when clicked.
+        """
+        btn = QPushButton()
+        btn.setIcon(QIcon(resource_path(relative_path)))
+        btn.setIconSize(QSize(24, 24))
+        btn.setFlat(True)
+        btn.setToolTip(tooltip)
+        if custom_style:
+            btn.setStyleSheet(custom_style)
+        btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(url)))
+        return btn
+
     def init_ui(self) -> None:
         """
         Initializes the user interface components.
         """
-        widget = QWidget()
-        self.setCentralWidget(widget)
+        main_widget = QWidget()
+        self.setCentralWidget(main_widget)
         main_layout = QVBoxLayout()
+
+        # Header section with title and icon buttons
+        header_layout = self.create_header_layout()
+        main_layout.addLayout(header_layout)
+
+        # Form section with various overlay settings
+        form_layout = self.create_form_layout()
+        main_layout.addLayout(form_layout)
+
+        # Buttons section for overlay control and updates
+        button_layout = self.create_button_layout()
+        main_layout.addLayout(button_layout)
+
+        main_widget.setLayout(main_layout)
+
+    def create_header_layout(self) -> QHBoxLayout:
+        """
+        Creates the header layout containing the app title and icon buttons.
+        """
+        header_layout = QHBoxLayout()
+
+        title_label = QLabel(f"CS2 ESP {CURRENT_VERSION}")
+        title_label.setStyleSheet("color: #D5006D; font-size: 22px; font-weight: bold;")
+        header_layout.addWidget(title_label)
+
+        icon_layout = QHBoxLayout()
+        icon_layout.setAlignment(Qt.AlignmentFlag.AlignRight)
+        icon_layout.addWidget(self.create_icon_button('src/img/telegram_icon.png',
+                                                      "Join our Telegram channel",
+                                                      "https://t.me/cs2_jesewe"))
+        icon_layout.addWidget(self.create_icon_button('src/img/github_icon.png',
+                                                      "Visit our GitHub repository",
+                                                      "https://github.com/Jesewe/cs2-esp"))
+
+        update_url = check_for_updates(CURRENT_VERSION)
+        if update_url:
+            update_style = (
+                "QPushButton { background-color: #333333; border-radius: 12px; border: 2px solid #D5006D; } "
+                "QPushButton:hover { background-color: #444444; }"
+            )
+            update_btn = self.create_icon_button('src/img/update_icon.png',
+                                                 "New update available! Click to download.",
+                                                 update_url,
+                                                 custom_style=update_style)
+            icon_layout.addWidget(update_btn)
+
+        header_layout.addLayout(icon_layout)
+        return header_layout
+
+    def create_form_layout(self) -> QFormLayout:
+        """
+        Creates the form layout containing overlay settings controls.
+        """
         form_layout = QFormLayout()
 
         # Snaplines options
@@ -102,6 +183,11 @@ class MainWindow(QMainWindow):
         self.text_color_combo.setCurrentText(default_text)
         form_layout.addRow("Text Color:", self.text_color_combo)
 
+        # Health numbers option
+        self.health_numbers_checkbox = QCheckBox("Draw Health Numbers")
+        self.health_numbers_checkbox.setChecked(overlay_settings.draw_health_numbers)
+        form_layout.addRow("Health Numbers:", self.health_numbers_checkbox)
+
         # Transliteration option
         self.translit_checkbox = QCheckBox("Use Transliteration")
         self.translit_checkbox.setChecked(overlay_settings.use_transliteration)
@@ -122,33 +208,37 @@ class MainWindow(QMainWindow):
         self.teammate_color_combo.setCurrentText(default_team)
         form_layout.addRow("Teammate Color:", self.teammate_color_combo)
 
-        main_layout.addLayout(form_layout)
-
-        # Buttons layout
-        button_layout = QHBoxLayout()
-        self.start_button = QPushButton("Start Overlay")
-        self.stop_button = QPushButton("Stop Overlay")
-        self.stop_button.setEnabled(False)
-        self.update_button = QPushButton("Check for Updates")
-        button_layout.addWidget(self.start_button)
-        button_layout.addWidget(self.stop_button)
-        button_layout.addWidget(self.update_button)
-        main_layout.addLayout(button_layout)
-
-        widget.setLayout(main_layout)
-
-        # Connect signals to slots
-        self.start_button.clicked.connect(self.start_overlay)
-        self.stop_button.clicked.connect(self.stop_overlay)
-        self.update_button.clicked.connect(self.check_updates)
+        # Connect UI changes to update settings
         self.snaplines_checkbox.stateChanged.connect(self.update_settings)
         self.snaplines_color_combo.currentIndexChanged.connect(self.update_settings)
         self.thickness_spinbox.valueChanged.connect(self.update_settings)
         self.box_color_combo.currentIndexChanged.connect(self.update_settings)
         self.text_color_combo.currentIndexChanged.connect(self.update_settings)
+        self.health_numbers_checkbox.stateChanged.connect(self.update_settings)
         self.translit_checkbox.stateChanged.connect(self.update_settings)
         self.teammates_checkbox.stateChanged.connect(self.update_settings)
         self.teammate_color_combo.currentIndexChanged.connect(self.update_settings)
+
+        return form_layout
+
+    def create_button_layout(self) -> QHBoxLayout:
+        """
+        Creates the layout containing control buttons for starting/stopping the overlay and checking for updates.
+        """
+        button_layout = QHBoxLayout()
+        button_layout.setContentsMargins(30, 0, 30, 0)
+
+        self.start_button = QPushButton("Start Overlay")
+        self.stop_button = QPushButton("Stop Overlay")
+        self.stop_button.setEnabled(False)
+
+        self.start_button.clicked.connect(self.start_overlay)
+        self.stop_button.clicked.connect(self.stop_overlay)
+
+        button_layout.addWidget(self.start_button)
+        button_layout.addWidget(self.stop_button)
+
+        return button_layout
 
     @pyqtSlot()
     def update_settings(self) -> None:
@@ -160,6 +250,7 @@ class MainWindow(QMainWindow):
         overlay_settings.box_line_thickness = self.thickness_spinbox.value()
         overlay_settings.box_color_hex = self.box_color_combo.currentData() or "#FFA500"
         overlay_settings.text_color_hex = self.text_color_combo.currentData() or "#FFFFFF"
+        overlay_settings.draw_health_numbers = self.health_numbers_checkbox.isChecked()
         overlay_settings.use_transliteration = self.translit_checkbox.isChecked()
         overlay_settings.draw_teammates = self.teammates_checkbox.isChecked()
         overlay_settings.teammate_color_hex = self.teammate_color_combo.currentData() or "#00FFFF"
@@ -171,6 +262,7 @@ class MainWindow(QMainWindow):
         Starts the overlay worker thread if it is not already running.
         """
         if self.overlay_thread is not None and self.overlay_thread.isRunning():
+            logger.debug("Overlay already running.")
             return
 
         try:
@@ -184,9 +276,12 @@ class MainWindow(QMainWindow):
             self.overlay_thread.finished.connect(self.overlay_thread.deleteLater)
             self.overlay_thread.finished.connect(lambda: setattr(self, 'overlay_thread', None))
             self.overlay_thread.start()
+
             self.start_button.setEnabled(False)
             self.stop_button.setEnabled(True)
+            logger.info("Overlay started.")
         except Exception as e:
+            logger.exception("Failed to start overlay: %s", e)
             self.on_overlay_error(str(e))
 
     @pyqtSlot()
@@ -200,31 +295,15 @@ class MainWindow(QMainWindow):
             if self.overlay_thread:
                 self.overlay_thread.quit()
                 self.overlay_thread.wait()
+                logger.info("Overlay stopped.")
         except RuntimeError as e:
-            logger.error("Overlay worker already deleted: %s", e)
+            logger.error("Error stopping overlay worker: %s", e)
         finally:
             self.overlay_worker = None
             self.overlay_thread = None
+
         self.start_button.setEnabled(True)
         self.stop_button.setEnabled(False)
-
-    @pyqtSlot()
-    def check_updates(self) -> None:
-        """
-        Checks for updates by querying GitHub. If a newer version is available,
-        displays the update details in a message box.
-        """
-        update_info = check_for_updates(CURRENT_VERSION)
-        if "error" in update_info:
-            QMessageBox.critical(self, "Update Error", update_info["error"])
-        else:
-            if update_info.get("update_available"):
-                msg = (
-                    f"New version available: {update_info['latest_version']}\n\n"
-                )
-                QMessageBox.information(self, "Update Available", msg)
-            else:
-                QMessageBox.information(self, "No Updates", f"You are running the latest version: {CURRENT_VERSION}")
 
     @pyqtSlot(str)
     def on_overlay_error(self, error_message: str) -> None:
@@ -239,7 +318,10 @@ class MainWindow(QMainWindow):
         Ensures that the overlay is stopped and hotkeys are removed upon closing the application.
         """
         self.stop_overlay()
-        keyboard.remove_hotkey("F6")
-        keyboard.remove_hotkey("F7")
+        try:
+            keyboard.remove_hotkey("F6")
+            keyboard.remove_hotkey("F7")
+        except Exception as e:
+            logger.error("Error removing hotkeys: %s", e)
         overlay.overlay_close()
         event.accept()

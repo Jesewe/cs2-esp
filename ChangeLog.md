@@ -1,11 +1,7 @@
 ### Summary
 
-- **Modularization:** The project is divided into logical modules.
+- **Modern Look:** A custom style sheet was added to improve the appearance of the application.
 
-- **Configuration Management:** The settings are loaded from and saved to `%LOCALAPPDATA%\Requests\ItsJesewe\esp_config.json`. The `_update_config` class method ensures that missing keys are added.
+- **Improved Error Handling:** More try/except blocks and error messages help catch and show errors clearly.
 
-- **Error Handling:** If the target game process (`cs2.exe`) is not found or another error occurs during initialization, an error signal is emitted. The GUI then displays a QMessageBox instead of crashing.
-
-- **Global Hotkeys:** The `keyboard` module registers F6 and F7 as global hotkeys to start and stop the overlay even when the application is not active.
-
-- **Enhanced Drawing:** The overlay displays the nickname above the box and a vertical health progress bar whose color changes with health.
+![Downloads](https://img.shields.io/github/downloads/Jesewe/cs2-esp/v1.0.1/total?style=for-the-badge&logo=github&color=D5006D) ![Platforms](https://img.shields.io/badge/platform-Windows-blue?style=for-the-badge&color=D5006D) ![License](https://img.shields.io/github/license/jesewe/cs2-triggerbot?style=for-the-badge&color=D5006D)

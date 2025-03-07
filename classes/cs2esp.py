@@ -1,14 +1,17 @@
+import logging
 import requests
 import pymem
 import pyMeow as overlay
-from typing import Iterator, Optional, Dict, Any
+from typing import Iterator, Optional, Dict
 from classes.utils import read_vec3, read_string, read_floats, transliterate
 from classes.config import Offsets, Colors, overlay_settings
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
-import logging
 
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
+# Constants for entity iteration
+ENTITY_COUNT = 64
+ENTITY_ENTRY_SIZE = 120
 
 class Entity:
     """
@@ -28,34 +31,53 @@ class Entity:
 
     @property
     def health(self) -> int:
-        return self.mem.read_int(self.pawn_ptr + Offsets.m_iHealth)
+        try:
+            return self.mem.read_int(self.pawn_ptr + Offsets.m_iHealth)
+        except Exception as e:
+            logging.error("Failed to read health: %s", e)
+            return 0
 
     @property
     def team(self) -> int:
-        return self.mem.read_int(self.pawn_ptr + Offsets.m_iTeamNum)
+        try:
+            return self.mem.read_int(self.pawn_ptr + Offsets.m_iTeamNum)
+        except Exception as e:
+            logging.error("Failed to read team: %s", e)
+            return -1
 
     @property
     def pos(self) -> Dict[str, float]:
-        return read_vec3(self.mem, self.pawn_ptr + Offsets.m_vOldOrigin)
+        try:
+            return read_vec3(self.mem, self.pawn_ptr + Offsets.m_vOldOrigin)
+        except Exception as e:
+            logging.error("Failed to read position: %s", e)
+            return {"x": 0.0, "y": 0.0, "z": 0.0}
 
     @property
     def dormant(self) -> bool:
-        return bool(self.mem.read_int(self.pawn_ptr + Offsets.m_bDormant))
+        try:
+            return bool(self.mem.read_int(self.pawn_ptr + Offsets.m_bDormant))
+        except Exception as e:
+            logging.error("Failed to read dormant flag: %s", e)
+            return True
 
     def bone_pos(self, bone: int) -> Dict[str, float]:
-        game_scene = self.mem.read_longlong(self.pawn_ptr + Offsets.m_pGameSceneNode)
-        bone_array_ptr = self.mem.read_longlong(game_scene + Offsets.m_pBoneArray)
-        return read_vec3(self.mem, bone_array_ptr + bone * 32)
+        try:
+            game_scene = self.mem.read_longlong(self.pawn_ptr + Offsets.m_pGameSceneNode)
+            bone_array_ptr = self.mem.read_longlong(game_scene + Offsets.m_pBoneArray)
+            return read_vec3(self.mem, bone_array_ptr + bone * 32)
+        except Exception as e:
+            logging.error("Failed to get bone position for bone %d: %s", bone, e)
+            return {"x": 0.0, "y": 0.0, "z": 0.0}
 
     def world_to_screen(self, view_matrix: list) -> bool:
         try:
             self.pos2d = overlay.world_to_screen(view_matrix, self.pos, 1)
             self.head_pos2d = overlay.world_to_screen(view_matrix, self.bone_pos(6), 1)
+            return True
         except Exception as e:
             logging.error("world_to_screen conversion failed: %s", e)
             return False
-        return True
-
 
 class CS2Esp:
     """
@@ -80,32 +102,36 @@ class CS2Esp:
         Loads game offsets and field mappings from remote JSON resources.
         """
         try:
-            offsets_url = "https://raw.githubusercontent.com/a2x/cs2-dumper/main/output/offsets.json"
-            with requests.get(offsets_url) as offsets_response:
+            # Use a session for improved performance and timeout handling
+            with requests.Session() as session:
+                offsets_url = "https://raw.githubusercontent.com/a2x/cs2-dumper/main/output/offsets.json"
+                offsets_response = session.get(offsets_url, timeout=10)
                 offsets_response.raise_for_status()
                 offsets_data = offsets_response.json()
-            keys = ["dwViewMatrix", "dwEntityList", "dwLocalPlayerController", "dwLocalPlayerPawn"]
-            for key in keys:
-                setattr(Offsets, key, offsets_data["client.dll"][key])
 
-            client_dll_url = "https://raw.githubusercontent.com/a2x/cs2-dumper/main/output/client_dll.json"
-            with requests.get(client_dll_url) as client_dll_response:
+                # Load required offset keys
+                keys = ["dwViewMatrix", "dwEntityList", "dwLocalPlayerController", "dwLocalPlayerPawn"]
+                for key in keys:
+                    setattr(Offsets, key, offsets_data["client.dll"].get(key))
+
+                client_dll_url = "https://raw.githubusercontent.com/a2x/cs2-dumper/main/output/client_dll.json"
+                client_dll_response = session.get(client_dll_url, timeout=10)
                 client_dll_response.raise_for_status()
                 client_dll_data = client_dll_response.json()
 
-            mapping = {
-                "m_iIDEntIndex": "C_CSPlayerPawnBase",
-                "m_hPlayerPawn": "CCSPlayerController",
-                "m_fFlags": "C_BaseEntity",
-                "m_iszPlayerName": "CBasePlayerController",
-                "m_iHealth": "C_BaseEntity",
-                "m_iTeamNum": "C_BaseEntity",
-                "m_vOldOrigin": "C_BasePlayerPawn",
-                "m_pGameSceneNode": "C_BaseEntity",
-                "m_bDormant": "CGameSceneNode",
-            }
-            for field, cls in mapping.items():
-                setattr(Offsets, field, client_dll_data["client.dll"]["classes"][cls]["fields"][field])
+                mapping = {
+                    "m_iIDEntIndex": "C_CSPlayerPawnBase",
+                    "m_hPlayerPawn": "CCSPlayerController",
+                    "m_fFlags": "C_BaseEntity",
+                    "m_iszPlayerName": "CBasePlayerController",
+                    "m_iHealth": "C_BaseEntity",
+                    "m_iTeamNum": "C_BaseEntity",
+                    "m_vOldOrigin": "C_BasePlayerPawn",
+                    "m_pGameSceneNode": "C_BaseEntity",
+                    "m_bDormant": "CGameSceneNode",
+                }
+                for field, cls in mapping.items():
+                    setattr(Offsets, field, client_dll_data["client.dll"]["classes"][cls]["fields"].get(field))
         except Exception as e:
             raise Exception(f"Error loading offsets: {e}")
 
@@ -119,10 +145,6 @@ class CS2Esp:
         except Exception as e:
             logging.error("Error reading entity list or local controller pointer: %s", e)
             return iter([])
-
-        # Constants used for entity list indexing
-        ENTITY_COUNT = 64
-        ENTITY_ENTRY_SIZE = 120
 
         for i in range(1, ENTITY_COUNT + 1):
             try:
@@ -164,7 +186,7 @@ class CS2Esp:
                 overlay_settings.teammate_color_hex if is_teammate else overlay_settings.box_color_hex
             )
             text_color = overlay.get_color(overlay_settings.text_color_hex)
-
+            # Optionally draw snaplines
             if overlay_settings.draw_snaplines:
                 screen_width = overlay.get_screen_width()
                 screen_height = overlay.get_screen_height()
@@ -235,6 +257,16 @@ class CS2Esp:
                 fill_height,
                 fill_color
             )
+            # Optionally draw health numbers
+            if getattr(overlay_settings, 'draw_health_numbers', False):
+                health_text = f"{entity.health}"
+                overlay.draw_text(
+                    health_text,
+                    int(bar_x - 25),
+                    int(bar_y + bar_height / 2 - 5),
+                    10,
+                    text_color
+                )
         except Exception as e:
             logging.error("Error drawing entity: %s", e)
 
@@ -289,7 +321,6 @@ class CS2Esp:
     def stop(self) -> None:
         """Stops the overlay loop."""
         self.running = False
-
 
 class OverlayWorker(QObject):
     """

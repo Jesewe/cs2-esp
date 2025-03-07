@@ -52,8 +52,8 @@
 
 - **PyMeow Module:**  
   PyMeow is a dependency for overlay drawing.
-  1. Visit the [PyMeow GitHub Releases page](https://github.com/qb-0/pyMeow/releases) and download the latest `pyMeow*.zip` release.
-  2. Install PyMeow using pip:
+  Visit the [PyMeow GitHub Releases page](https://github.com/qb-0/pyMeow/releases) and download the latest `pyMeow*.zip` release.
+  Install PyMeow using pip:
      ```bash
      pip install pyMeow*.zip
      ```

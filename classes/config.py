@@ -3,7 +3,7 @@ import json
 from pyMeow import get_color, fade_color
 
 # Define the current version of the application.
-CURRENT_VERSION = "1.0.0"
+CURRENT_VERSION = "v1.0.1"
 
 # Define the configuration directory and file.
 CONFIG_DIR = os.path.join(os.environ.get("LOCALAPPDATA", "."), "Requests", "ItsJesewe")
@@ -16,6 +16,7 @@ DEFAULT_CONFIG = {
     "box_line_thickness": 1.2,     # Default box line thickness
     "box_color_hex": "#FFA500",    # Default enemy box outline (Orange)
     "text_color_hex": "#FFFFFF",   # Default text color (White)
+    "draw_health_numbers": False,  # Whether to display health numbers
     "use_transliteration": True,   # Whether to use transliteration for player names
     "draw_teammates": False,       # Whether to display ESP for teammates
     "teammate_color_hex": "#00FFFF"  # Default teammate box outline (Cyan)
@@ -28,6 +29,7 @@ class OverlaySettings:
         self.box_line_thickness = DEFAULT_CONFIG["box_line_thickness"]
         self.box_color_hex = DEFAULT_CONFIG["box_color_hex"]
         self.text_color_hex = DEFAULT_CONFIG["text_color_hex"]
+        self.draw_health_numbers = DEFAULT_CONFIG["draw_health_numbers"]
         self.use_transliteration = DEFAULT_CONFIG["use_transliteration"]
         self.draw_teammates = DEFAULT_CONFIG["draw_teammates"]
         self.teammate_color_hex = DEFAULT_CONFIG["teammate_color_hex"]
@@ -48,6 +50,7 @@ class OverlaySettings:
                 self.box_line_thickness = data.get("box_line_thickness", self.box_line_thickness)
                 self.box_color_hex = data.get("box_color_hex", self.box_color_hex)
                 self.text_color_hex = data.get("text_color_hex", self.text_color_hex)
+                self.draw_health_numbers = data.get("draw_health_numbers", self.draw_health_numbers)
                 self.use_transliteration = data.get("use_transliteration", self.use_transliteration)
                 self.draw_teammates = data.get("draw_teammates", self.draw_teammates)
                 self.teammate_color_hex = data.get("teammate_color_hex", self.teammate_color_hex)
@@ -64,6 +67,7 @@ class OverlaySettings:
                 "box_line_thickness": self.box_line_thickness,
                 "box_color_hex": self.box_color_hex,
                 "text_color_hex": self.text_color_hex,
+                "draw_health_numbers": self.draw_health_numbers,
                 "use_transliteration": self.use_transliteration,
                 "draw_teammates": self.draw_teammates,
                 "teammate_color_hex": self.teammate_color_hex,
