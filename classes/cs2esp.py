@@ -70,13 +70,26 @@ class Entity:
             logging.error("Failed to get bone position for bone %d: %s", bone, e)
             return {"x": 0.0, "y": 0.0, "z": 0.0}
 
+    @staticmethod
+    def validate_screen_position(pos: Dict[str, float]) -> bool:
+        screen_width = overlay.get_screen_width()
+        screen_height = overlay.get_screen_height()
+        return 0 <= pos["x"] <= screen_width and 0 <= pos["y"] <= screen_height
+
     def world_to_screen(self, view_matrix: list) -> bool:
         try:
-            self.pos2d = overlay.world_to_screen(view_matrix, self.pos, 1)
-            self.head_pos2d = overlay.world_to_screen(view_matrix, self.bone_pos(6), 1)
+            pos2d = overlay.world_to_screen(view_matrix, self.pos, 1)
+            head2d = overlay.world_to_screen(view_matrix, self.bone_pos(6), 1)
+
+            # Use the static method to validate the screen positions
+            if not Entity.validate_screen_position(pos2d) or not Entity.validate_screen_position(head2d):
+                logging.debug("Converted 2D position out of screen bounds: pos2d=%s, head2d=%s", pos2d, head2d)
+                return False
+
+            self.pos2d = pos2d
+            self.head_pos2d = head2d
             return True
         except Exception as e:
-            logging.error("world_to_screen conversion failed: %s", e)
             return False
 
 class CS2Esp:
@@ -151,15 +164,24 @@ class CS2Esp:
                 list_index = (i & 0x7FFF) >> 9
                 entity_index = i & 0x1FF
                 entry_ptr = self.mem.read_longlong(ent_list_ptr + (8 * list_index) + 16)
-                controller_ptr = self.mem.read_longlong(entry_ptr + ENTITY_ENTRY_SIZE * entity_index)
-                # Skip the local player
-                if controller_ptr == local_controller_ptr:
+                if not entry_ptr:
                     continue
+
+                controller_ptr = self.mem.read_longlong(entry_ptr + ENTITY_ENTRY_SIZE * entity_index)
+                if not controller_ptr or controller_ptr == local_controller_ptr:
+                    continue
+
                 controller_pawn_ptr = self.mem.read_longlong(controller_ptr + Offsets.m_hPlayerPawn)
-                list_entry_ptr = self.mem.read_longlong(
-                    ent_list_ptr + 8 * ((controller_pawn_ptr & 0x7FFF) >> 9) + 16
-                )
+                if not controller_pawn_ptr:
+                    continue
+
+                list_entry_ptr = self.mem.read_longlong(ent_list_ptr + 8 * ((controller_pawn_ptr & 0x7FFF) >> 9) + 16)
+                if not list_entry_ptr:
+                    continue
+
                 pawn_ptr = self.mem.read_longlong(list_entry_ptr + ENTITY_ENTRY_SIZE * (controller_pawn_ptr & 0x1FF))
+                if not pawn_ptr:
+                    continue
             except Exception as e:
                 logging.error("Error iterating entity %d: %s", i, e)
                 continue
