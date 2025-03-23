@@ -3,7 +3,7 @@ import json
 from pyMeow import get_color, fade_color
 
 # Define the current version of the application.
-CURRENT_VERSION = "v1.0.1"
+CURRENT_VERSION = "v1.0.1.1"
 
 # Define the configuration directory and file.
 CONFIG_DIR = os.path.join(os.environ.get("LOCALAPPDATA", "."), "Requests", "ItsJesewe")
@@ -12,14 +12,14 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, "esp_config.json")
 # Default configuration values.
 DEFAULT_CONFIG = {
     "draw_snaplines": False,
-    "snaplines_color_hex": "#FFFFFF",   # Default snaplines color (White)
-    "box_line_thickness": 1.2,     # Default box line thickness
-    "box_color_hex": "#FFA500",    # Default enemy box outline (Orange)
-    "text_color_hex": "#FFFFFF",   # Default text color (White)
-    "draw_health_numbers": False,  # Whether to display health numbers
-    "use_transliteration": True,   # Whether to use transliteration for player names
-    "draw_teammates": False,       # Whether to display ESP for teammates
-    "teammate_color_hex": "#00FFFF"  # Default teammate box outline (Cyan)
+    "snaplines_color_hex": "#FFFFFF", # Default snaplines color (White)
+    "box_line_thickness": 1.2,        # Default box line thickness
+    "box_color_hex": "#FFA500",       # Default enemy box outline (Orange)
+    "text_color_hex": "#FFFFFF",      # Default text color (White)
+    "draw_health_numbers": False,     # Whether to display health numbers
+    "use_transliteration": True,      # Whether to use transliteration for player names
+    "draw_teammates": False,          # Whether to display ESP for teammates
+    "teammate_color_hex": "#00FFFF"   # Default teammate box outline (Cyan)
 }
 
 class OverlaySettings:
@@ -116,3 +116,7 @@ class Colors:
     cyan = get_color("cyan")
     white = get_color("white")
     grey = fade_color(get_color("#242625"), 0.7)
+    red = get_color("red")
+    green = get_color("green")
+    blue = get_color("blue")
+    yellow = get_color("yellow")

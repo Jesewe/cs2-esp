@@ -27,7 +27,7 @@ class MainWindow(QMainWindow):
         self.repo_url: str = "github.com/Jesewe/cs2-esp"
         self.setWindowTitle(f"CS2 ESP | {self.repo_url}")
         self.set_app_icon(resource_path("src/img/icon.ico"))
-        self.setFixedSize(500, 420)
+        self.setFixedSize(600, 500)
         self.overlay_thread: QThread | None = None
         self.overlay_worker: OverlayWorker | None = None
         self.init_ui()
@@ -271,8 +271,6 @@ class MainWindow(QMainWindow):
             self.overlay_worker.moveToThread(self.overlay_thread)
             self.overlay_worker.errorOccurred.connect(self.on_overlay_error)
             self.overlay_thread.started.connect(self.overlay_worker.run)
-            self.overlay_worker.finished.connect(self.overlay_thread.quit)
-            self.overlay_worker.finished.connect(self.overlay_worker.deleteLater)
             self.overlay_thread.finished.connect(self.overlay_thread.deleteLater)
             self.overlay_thread.finished.connect(lambda: setattr(self, 'overlay_thread', None))
             self.overlay_thread.start()

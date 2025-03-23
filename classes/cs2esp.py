@@ -208,6 +208,7 @@ class CS2Esp:
                 overlay_settings.teammate_color_hex if is_teammate else overlay_settings.box_color_hex
             )
             text_color = overlay.get_color(overlay_settings.text_color_hex)
+
             # Optionally draw snaplines
             if overlay_settings.draw_snaplines:
                 screen_width = overlay.get_screen_width()
@@ -240,7 +241,7 @@ class CS2Esp:
 
             # Draw the entity's nickname above the box
             nickname = entity.name
-            nickname_font_size = 10
+            nickname_font_size = 11
             nickname_width = overlay.measure_text(nickname, nickname_font_size)
             overlay.draw_text(
                 nickname,
