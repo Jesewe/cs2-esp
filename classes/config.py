@@ -11,7 +11,8 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, "esp_config.json")
 
 # Default configuration values.
 DEFAULT_CONFIG = {
-    "draw_snaplines": False,
+    "draw_snaplines": False,          # Whether to draw snaplines
+    "enable_box": True,               # Whether to draw boxes around enemies
     "snaplines_color_hex": "#FFFFFF", # Default snaplines color (White)
     "box_line_thickness": 1.2,        # Default box line thickness
     "box_color_hex": "#FFA500",       # Default enemy box outline (Orange)
@@ -25,6 +26,7 @@ DEFAULT_CONFIG = {
 class OverlaySettings:
     def __init__(self):
         self.draw_snaplines = DEFAULT_CONFIG["draw_snaplines"]
+        self.enable_box = DEFAULT_CONFIG["enable_box"]
         self.snaplines_color_hex = DEFAULT_CONFIG["snaplines_color_hex"]
         self.box_line_thickness = DEFAULT_CONFIG["box_line_thickness"]
         self.box_color_hex = DEFAULT_CONFIG["box_color_hex"]
@@ -46,6 +48,7 @@ class OverlaySettings:
                     with open(CONFIG_FILE, "w") as f:
                         json.dump(data, f, indent=4)
                 self.draw_snaplines = data.get("draw_snaplines", self.draw_snaplines)
+                self.enable_box = data.get("enable_box", self.enable_box)
                 self.snaplines_color_hex = data.get("snaplines_color_hex", self.snaplines_color_hex)
                 self.box_line_thickness = data.get("box_line_thickness", self.box_line_thickness)
                 self.box_color_hex = data.get("box_color_hex", self.box_color_hex)
@@ -63,6 +66,7 @@ class OverlaySettings:
         try:
             data = {
                 "draw_snaplines": self.draw_snaplines,
+                "enable_box": self.enable_box,
                 "snaplines_color_hex": self.snaplines_color_hex,
                 "box_line_thickness": self.box_line_thickness,
                 "box_color_hex": self.box_color_hex,

@@ -154,6 +154,13 @@ class MainWindow(QMainWindow):
         self.snaplines_color_combo.setCurrentText(default_snap)
         form_layout.addRow("Snaplines Color:", self.snaplines_color_combo)
 
+        # Bounding box options
+        self.box_checkbox = QCheckBox("Enable Bounding Box")
+        if not hasattr(overlay_settings, "enable_box"):
+            overlay_settings.enable_box = True
+        self.box_checkbox.setChecked(overlay_settings.enable_box)
+        form_layout.addRow("Bounding Box:", self.box_checkbox)
+
         # Box line thickness
         self.thickness_spinbox = QDoubleSpinBox()
         self.thickness_spinbox.setRange(0.5, 5.0)
@@ -209,6 +216,7 @@ class MainWindow(QMainWindow):
         form_layout.addRow("Teammate Color:", self.teammate_color_combo)
 
         # Connect UI changes to update settings
+        self.box_checkbox.stateChanged.connect(self.update_settings)
         self.snaplines_checkbox.stateChanged.connect(self.update_settings)
         self.snaplines_color_combo.currentIndexChanged.connect(self.update_settings)
         self.thickness_spinbox.valueChanged.connect(self.update_settings)
@@ -245,6 +253,7 @@ class MainWindow(QMainWindow):
         """
         Updates overlay settings based on the current UI input values.
         """
+        overlay_settings.enable_box = self.box_checkbox.isChecked()
         overlay_settings.draw_snaplines = self.snaplines_checkbox.isChecked()
         overlay_settings.snaplines_color_hex = self.snaplines_color_combo.currentData() or "#000000"
         overlay_settings.box_line_thickness = self.thickness_spinbox.value()

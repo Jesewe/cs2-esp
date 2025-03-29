@@ -95,7 +95,7 @@ class Entity:
 class CS2Esp:
     """
     Core class that initializes memory reading, loads offsets,
-    iterates over game entities, and renders the overlay.
+    iterates over game entities, renders the overlay and optionally enables glow.
     """
     def __init__(self) -> None:
         try:
@@ -115,14 +115,12 @@ class CS2Esp:
         Loads game offsets and field mappings from remote JSON resources.
         """
         try:
-            # Use a session for improved performance and timeout handling
             with requests.Session() as session:
                 offsets_url = "https://raw.githubusercontent.com/a2x/cs2-dumper/main/output/offsets.json"
                 offsets_response = session.get(offsets_url, timeout=10)
                 offsets_response.raise_for_status()
                 offsets_data = offsets_response.json()
 
-                # Load required offset keys
                 keys = ["dwViewMatrix", "dwEntityList", "dwLocalPlayerController", "dwLocalPlayerPawn"]
                 for key in keys:
                     setattr(Offsets, key, offsets_data["client.dll"].get(key))
@@ -223,21 +221,22 @@ class CS2Esp:
                 )
 
             # Draw the entity's bounding box
-            overlay.draw_rectangle(
-                entity.head_pos2d["x"] - half_width,
-                entity.head_pos2d["y"] - half_width / 2,
-                box_width,
-                box_height + half_width / 2,
-                Colors.grey
-            )
-            overlay.draw_rectangle_lines(
-                entity.head_pos2d["x"] - half_width,
-                entity.head_pos2d["y"] - half_width / 2,
-                box_width,
-                box_height + half_width / 2,
-                outline_color,
-                overlay_settings.box_line_thickness
-            )
+            if overlay_settings.enable_box:
+                overlay.draw_rectangle(
+                    entity.head_pos2d["x"] - half_width,
+                    entity.head_pos2d["y"] - half_width / 2,
+                    box_width,
+                    box_height + half_width / 2,
+                    Colors.grey
+                )
+                overlay.draw_rectangle_lines(
+                    entity.head_pos2d["x"] - half_width,
+                    entity.head_pos2d["y"] - half_width / 2,
+                    box_width,
+                    box_height + half_width / 2,
+                    outline_color,
+                    overlay_settings.box_line_thickness
+                )
 
             # Draw the entity's nickname above the box
             nickname = entity.name
@@ -281,7 +280,7 @@ class CS2Esp:
                 fill_color
             )
             # Optionally draw health numbers
-            if getattr(overlay_settings, 'draw_health_numbers', False):
+            if overlay_settings.draw_health_numbers:
                 health_text = f"{entity.health}"
                 overlay.draw_text(
                     health_text,
@@ -323,7 +322,6 @@ class CS2Esp:
                 overlay.draw_fps(0, 0)
                 for entity in self.iterate_entities():
                     try:
-                        # Determine if the entity is a teammate and skip if not drawing teammates.
                         is_teammate = False
                         if local_team is not None and entity.team == local_team:
                             if not overlay_settings.draw_teammates:
