@@ -2,10 +2,11 @@ import logging
 import requests
 import pymem
 import pyMeow as overlay
-from typing import Iterator, Optional, Dict
+import threading
+import time
+from typing import Iterator, Optional, Dict, Callable
 from classes.utils import read_vec3, read_string, read_floats, transliterate
 from classes.config import Offsets, Colors, overlay_settings
-from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
@@ -343,30 +344,113 @@ class CS2Esp:
         """Stops the overlay loop."""
         self.running = False
 
-class OverlayWorker(QObject):
+class OverlayWorker:
     """
-    A Qt worker class for running the CS2 ESP overlay in a separate thread.
+    A worker class for running the CS2 ESP overlay with callback support.
+    Compatible with both threading and DearPyGui implementations.
     """
-    finished = pyqtSignal()
-    errorOccurred = pyqtSignal(str)
+    def __init__(self, error_callback: Optional[Callable[[str], None]] = None, 
+                 finished_callback: Optional[Callable[[], None]] = None) -> None:
+        self.error_callback = error_callback
+        self.finished_callback = finished_callback
+        self.esp: Optional[CS2Esp] = None
+        self._stop_event = threading.Event()
 
-    @pyqtSlot()
     def run(self) -> None:
+        """Run the overlay worker."""
         try:
             self.esp = CS2Esp()
         except Exception as e:
-            self.errorOccurred.emit(f"Initialization error: {e}")
-            self.finished.emit()
+            error_msg = f"Initialization error: {e}"
+            logging.error(error_msg)
+            if self.error_callback:
+                self.error_callback(error_msg)
+            if self.finished_callback:
+                self.finished_callback()
             return
 
         try:
+            # Run the ESP in a separate thread to allow for stopping
+            esp_thread = threading.Thread(target=self._run_esp_loop, daemon=True)
+            esp_thread.start()
+            
+            # Wait for stop signal or ESP completion
+            while esp_thread.is_alive() and not self._stop_event.is_set():
+                time.sleep(0.1)
+                
+            if esp_thread.is_alive():
+                self.esp.stop()
+                esp_thread.join(timeout=2.0)
+                
+        except Exception as e:
+            error_msg = f"Runtime error: {e}"
+            logging.error(error_msg)
+            if self.error_callback:
+                self.error_callback(error_msg)
+        finally:
+            if self.finished_callback:
+                self.finished_callback()
+
+    def _run_esp_loop(self) -> None:
+        """Internal method to run the ESP loop."""
+        try:
             self.esp.run()
         except Exception as e:
-            self.errorOccurred.emit(f"Runtime error: {e}")
-        finally:
-            self.finished.emit()
+            logging.error("ESP loop error: %s", e)
+            if self.error_callback:
+                self.error_callback(f"ESP loop error: {e}")
 
-    @pyqtSlot()
     def stop(self) -> None:
-        if hasattr(self, 'esp') and self.esp:
+        """Stop the overlay worker."""
+        self._stop_event.set()
+        if self.esp:
             self.esp.stop()
+
+    def is_running(self) -> bool:
+        """Check if the worker is currently running."""
+        return self.esp is not None and self.esp.running and not self._stop_event.is_set()
+
+# Compatibility class for PyQt6 migration
+class OverlayWorkerQt(OverlayWorker):
+    """
+    PyQt6-compatible version of OverlayWorker that maintains the original interface.
+    This can be used as a drop-in replacement during migration.
+    """
+    def __init__(self) -> None:
+        super().__init__()
+        # Mock PyQt6 signals for compatibility
+        self.finished = self._create_mock_signal()
+        self.errorOccurred = self._create_mock_signal()
+
+    def _create_mock_signal(self):
+        """Create a mock signal object."""
+        class MockSignal:
+            def __init__(self):
+                self.callbacks = []
+            
+            def connect(self, callback):
+                self.callbacks.append(callback)
+            
+            def emit(self, *args):
+                for callback in self.callbacks:
+                    try:
+                        callback(*args)
+                    except Exception as e:
+                        logging.error("Error in signal callback: %s", e)
+        
+        return MockSignal()
+
+    def run(self) -> None:
+        """Run with PyQt6-style signal emissions."""
+        def error_handler(error_msg):
+            self.errorOccurred.emit(error_msg)
+        
+        def finished_handler():
+            self.finished.emit()
+        
+        # Update callbacks
+        self.error_callback = error_handler
+        self.finished_callback = finished_handler
+        
+        # Run the base implementation
+        super().run()
