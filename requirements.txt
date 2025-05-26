@@ -1,6 +1,5 @@
 pymem==1.14.0
-PyQt6==6.9.0
-PyQt6_sip==13.10.0
+dearpygui==2.0.0
 keyboard==0.13.5
 requests==2.32.3
 packaging==25.0
