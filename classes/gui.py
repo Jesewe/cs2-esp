@@ -93,15 +93,43 @@ class MainWindow:
             logger.error("Failed to load fonts: %s", e)
 
     def load_app_icon(self) -> None:
-        """Load application icon if available."""
-        icon_path = resource_path("src/img/icon.ico")
-        if os.path.exists(icon_path):
-            try:
-                # DearPyGui doesn't directly support .ico files for viewport icons
-                # You would need to convert to supported format or use a different approach
-                pass
-            except Exception as e:
-                logger.error("Failed to load icon: %s", e)
+        """Load and set application icon with multiple format support."""
+        icon_paths = [
+            resource_path("src/img/icon.png"),
+        ]
+        
+        for icon_path in icon_paths:
+            if os.path.exists(icon_path):
+                try:
+                    # Load icon for DearPyGui
+                    width, height, channels, data = dpg.load_image(icon_path)
+                    
+                    # Create texture for the icon
+                    with dpg.texture_registry():
+                        dpg.add_raw_texture(
+                            width=width,
+                            height=height,
+                            default_value=data,
+                            format=dpg.mvFormat_Float_rgba,
+                            tag="app_icon"
+                        )
+                    
+                    # Set small icon in viewport (Windows)
+                    if hasattr(dpg, 'set_viewport_small_icon'):
+                        dpg.set_viewport_small_icon(icon_path)
+                    
+                    # Set large icon in viewport (Windows)
+                    if hasattr(dpg, 'set_viewport_large_icon'):
+                        dpg.set_viewport_large_icon(icon_path)
+                    
+                    logger.info(f"Successfully loaded application icon: {icon_path}")
+                    return
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to load icon {icon_path}: %s", e)
+                    continue
+        
+        logger.warning("No application icon found in expected locations")
 
     def apply_theme(self) -> None:
         """Apply custom theme to match the original design."""
@@ -181,6 +209,7 @@ class MainWindow:
 
     def create_settings_section(self) -> None:
         """Create the settings section with all overlay options."""
+        # Removed Spectator Warning and Minimap Position controls as per instructions
         dpg.add_text("Overlay Settings", color=(213, 0, 109, 255))
         
         with dpg.group():
@@ -208,7 +237,6 @@ class MainWindow:
             with dpg.group(horizontal=True):
                 if not hasattr(overlay_settings, "enable_box"):
                     overlay_settings.enable_box = True
-                    
                 dpg.add_checkbox(
                     label="Enable Bounding Box",
                     tag="box_checkbox",
@@ -259,6 +287,13 @@ class MainWindow:
             )
 
             dpg.add_checkbox(
+                label="Draw Nicknames",
+                tag="nicknames_checkbox",
+                default_value=overlay_settings.draw_nicknames,
+                callback=self.update_settings
+            )
+
+            dpg.add_checkbox(
                 label="Use Transliteration",
                 tag="translit_checkbox",
                 default_value=overlay_settings.use_transliteration,
@@ -281,6 +316,34 @@ class MainWindow:
                     callback=self.update_settings
                 )
                 dpg.add_text("Teammate Color")
+
+            dpg.add_spacer(height=5)
+
+            # Minimap settings (without position selection)
+            dpg.add_checkbox(
+                label="Enable Minimap",
+                tag="minimap_checkbox",
+                default_value=overlay_settings.enable_minimap,
+                callback=self.update_settings
+            )
+
+            with dpg.group(horizontal=True):
+                dpg.add_input_int(
+                    label="Minimap Size",
+                    tag="minimap_size_input",
+                    default_value=overlay_settings.minimap_size,
+                    min_value=100,
+                    max_value=500,
+                    width=120,
+                    callback=self.update_settings
+                )
+
+            dpg.add_checkbox(
+                label="Optimize FPS",
+                tag="optimize_fps_checkbox",
+                default_value=overlay_settings.optimize_fps,
+                callback=self.update_settings
+            )
 
     def create_control_section(self) -> None:
         """Create the control section with start/stop buttons."""
@@ -321,6 +384,7 @@ class MainWindow:
 
     def update_settings(self) -> None:
         """Updates overlay settings based on the current UI input values."""
+        # Removed updates for spectator warning and minimap position as per instructions
         try:
             overlay_settings.enable_box = dpg.get_value("box_checkbox")
             overlay_settings.draw_snaplines = dpg.get_value("snaplines_checkbox")
@@ -338,10 +402,15 @@ class MainWindow:
             
             overlay_settings.draw_health_numbers = dpg.get_value("health_numbers_checkbox")
             overlay_settings.use_transliteration = dpg.get_value("translit_checkbox")
+            overlay_settings.draw_nicknames = dpg.get_value("nicknames_checkbox")
             overlay_settings.draw_teammates = dpg.get_value("teammates_checkbox")
             
             teammate_color_name = dpg.get_value("teammate_color_combo")
             overlay_settings.teammate_color_hex = COLOR_CHOICES.get(teammate_color_name, "#00FFFF")
+            
+            overlay_settings.enable_minimap = dpg.get_value("minimap_checkbox")
+            overlay_settings.minimap_size = dpg.get_value("minimap_size_input")
+            overlay_settings.optimize_fps = dpg.get_value("optimize_fps_checkbox")
             
             overlay_settings.save()
         except Exception as e:

@@ -23,7 +23,7 @@ VSVersionInfo(
                         StringStruct(u'FileVersion', u'1.0.1.1'),
                         StringStruct(u'InternalName', u'CS2 ESP'),
                         StringStruct(u'LegalCopyright', u'(C) 2025 Jesewe. MIT License'),
-                        StringStruct(u'OriginalFilename', u'CS2 ESP.exe'),
+                        StringStruct(u'OriginalFilename', u'CS2.ESP.exe'),
                         StringStruct(u'ProductName', u'CS2 ESP'),
                         StringStruct(u'ProductVersion', u'1.0.1.1')
                     ]

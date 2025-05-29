@@ -239,17 +239,18 @@ class CS2Esp:
                     overlay_settings.box_line_thickness
                 )
 
-            # Draw the entity's nickname above the box
-            nickname = entity.name
-            nickname_font_size = 11
-            nickname_width = overlay.measure_text(nickname, nickname_font_size)
-            overlay.draw_text(
-                nickname,
-                entity.head_pos2d["x"] - nickname_width // 2,
-                entity.head_pos2d["y"] - half_width / 2 - 15,
-                nickname_font_size,
-                text_color
-            )
+            # Draw the entity's nickname above the box if enabled
+            if overlay_settings.draw_nicknames:
+                nickname = entity.name
+                nickname_font_size = 11
+                nickname_width = overlay.measure_text(nickname, nickname_font_size)
+                overlay.draw_text(
+                    nickname,
+                    entity.head_pos2d["x"] - nickname_width // 2,
+                    entity.head_pos2d["y"] - half_width / 2 - 15,
+                    nickname_font_size,
+                    text_color
+                )
 
             # Draw the vertical health bar to the left of the bounding box
             bar_width = 4
@@ -293,6 +294,44 @@ class CS2Esp:
         except Exception as e:
             logging.error("Error drawing entity: %s", e)
 
+    def draw_minimap(self, entities: list[Entity], view_matrix: list) -> None:
+        """Draws a minimap overlay showing entity positions."""
+        if not overlay_settings.enable_minimap:
+            return
+
+        # Placeholder map boundaries (adjust these based on CS2 map data)
+        map_min = {"x": -4000, "y": -4000}  # Example min coordinates
+        map_max = {"x": 4000, "y": 4000}    # Example max coordinates
+        map_size = {"x": map_max["x"] - map_min["x"], "y": map_max["y"] - map_min["y"]}
+
+        minimap_size = overlay_settings.minimap_size
+        screen_width = overlay.get_screen_width()
+        screen_height = overlay.get_screen_height()
+
+        # Determine minimap position (fixed to "top_left" via config)
+        positions = {
+            "top_left": (10, 10),
+            "top_right": (screen_width - minimap_size - 10, 10),
+            "bottom_left": (10, screen_height - minimap_size - 10),
+            "bottom_right": (screen_width - minimap_size - 10, screen_height - minimap_size - 10)
+        }
+        minimap_x, minimap_y = positions[overlay_settings.minimap_position]
+
+        # Draw minimap background
+        overlay.draw_rectangle(minimap_x, minimap_y, minimap_size, minimap_size, Colors.grey)
+        overlay.draw_rectangle_lines(minimap_x, minimap_y, minimap_size, minimap_size, Colors.black, 2)
+
+        # Draw entities on the minimap
+        for entity in entities:
+            if entity.health <= 0 or entity.dormant:
+                continue
+            pos = entity.pos
+            # Scale 3D world coordinates to 2D minimap coordinates
+            map_x = ((pos["x"] - map_min["x"]) / map_size["x"]) * minimap_size + minimap_x
+            map_y = ((map_max["y"] - pos["y"]) / map_size["y"]) * minimap_size + minimap_y  # Invert y-axis
+            color = Colors.cyan if entity.team == self.local_team else Colors.red
+            overlay.draw_circle(map_x, map_y, 3, color)
+
     def run(self) -> None:
         """
         Main loop that initializes the overlay and updates entity ESP.
@@ -316,12 +355,15 @@ class CS2Esp:
                     local_pawn_ptr = self.mem.read_longlong(self.mod + Offsets.dwLocalPlayerPawn)
                     if local_pawn_ptr:
                         local_team = self.mem.read_int(local_pawn_ptr + Offsets.m_iTeamNum)
+                    self.local_team = local_team  # Store for minimap
                 except Exception as e:
                     logging.error("Error reading local team: %s", e)
 
+                entities = list(self.iterate_entities())  # Collect entities for minimap
                 overlay.begin_drawing()
                 overlay.draw_fps(0, 0)
-                for entity in self.iterate_entities():
+                self.draw_minimap(entities, view_matrix)
+                for entity in entities:
                     try:
                         is_teammate = False
                         if local_team is not None and entity.team == local_team:
@@ -333,6 +375,8 @@ class CS2Esp:
                         logging.error("Error processing an entity: %s", e)
                         continue
                 overlay.end_drawing()
+                if overlay_settings.optimize_fps:
+                    time.sleep(0.01)  # Reduce update frequency to optimize FPS
         except Exception as e:
             logging.error("Error in overlay loop: %s", e)
             raise Exception(f"Overlay error: {e}")
@@ -441,7 +485,7 @@ class OverlayWorkerQt(OverlayWorker):
         return MockSignal()
 
     def run(self) -> None:
-        """Run with PyQt6-style signal emissions."""
+        """Run the overlay worker with error and finished signal handling."""
         def error_handler(error_msg):
             self.errorOccurred.emit(error_msg)
         
