@@ -2,5 +2,5 @@ pymem==1.14.0
 dearpygui==2.0.0
 orjson==3.10.18
 keyboard==0.13.5
-requests==2.32.3
+requests==2.32.4
 packaging==25.0
